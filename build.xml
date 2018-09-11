@@ -1,0 +1,143 @@
+<project name="YLZPerformanceTest" basedir=".">
+	<property name="src.dir" value="${basedir}/src" />
+	<property name="classes.dir" value="${basedir}/build/classes" />
+	<property name="lib.dir" value="${basedir}/lib" />
+	<property name="script.dir" value="${basedir}/../testscript" />
+	<property name="test.results.file" value="${basedir}/../results" />
+	<property name="copy" value="${basedir}/../copy" />
+	<property name="copyOld" value="${basedir}/../copyOld" />
+	<property name="jmeter.home.dir" value="${basedir}/../jakarta-jmeter-2.4" />
+	<property name="test.data.folder" value="${basedir}/../testData" />
+	<property name="runremote" value="false" />
+	<property name="totalThreadNumber" value="1" />
+
+	<taskdef name="jmeter" classname="org.programmerplanet.ant.taskdefs.jmeter.JMeterTask" classpath="./lib/ant-jmeter-1.0.9.jar" />
+
+	<macrodef name="run.performance.tests">
+		<attribute name="thread.number" />
+		<attribute name="test.data.folder" />
+		<sequential>
+			<jmeter runremote="${runremote}" jmeterhome="${jmeter.home.dir}" resultlog="${test.results.file}/${number}.jtl">
+				<jvmarg value="-Dfile.encoding=UTF-8" />
+				<testplans dir="${script.dir}" includes="*.jmx" />
+				<property name="thread.number" value="@{thread.number}" />
+				<property name="rampup.period" value="0" />
+				<property name="loop.count" value="1" />
+				<property name="server.name" value="www.goodhopetest.com" />
+				<property name="test.data.folder" value="@{test.data.folder}" />
+			</jmeter>
+		</sequential>
+	</macrodef>
+
+	<path id="classpath">
+		<fileset dir="${lib.dir}" includes="*.jar" />
+	</path>
+
+	<target name="init">
+		<delete dir="${classes.dir}" />
+	</target>
+
+	<target name="compile" depends="init">
+		<mkdir dir="${classes.dir}" />
+		<javac srcdir="${src.dir}" destdir="${classes.dir}" classpathref="classpath" encoding="utf-8" />
+	</target>
+
+	<target name="generate.reports">
+		<xslt style="./jmeter-results-detail-report-improved.xsl" in="${test.results.file}/${number}.jtl" out="${test.results.file}/${number}.html" />
+	</target>
+
+	<target name="runJmeter">
+
+		<!--	<echo message="get Data of ${number}" />
+		<antcall target="GetTestData" />-->
+		<echo message="run thread of ${number}" />
+
+		<delete>
+			<fileset dir="${test.results.file}">
+				<include name="${number}.jtl" />
+				<include name="${number}.html" />
+			</fileset>
+		</delete>
+
+		<run.performance.tests thread.number="${number}" test.data.folder="${test.data.folder}" />
+
+		<antcall target="generate.reports" />
+
+		<move file="${test.results.file}/${number}.html" tofile="${copy}/${number}.html" overwrite="true" />
+
+		<antcall target="FromHtmlToExcel" />
+
+		<antcall target="sleep" />
+
+	</target>
+
+	<target name="FromHtmlToExcel" description="write data to excel from html ">
+		<java classname="com.ylzinfo.test.performance.FromHtmlToExcel" classpathref="classpath" fork="yes">
+			<arg line="file:///${copy}/${number}.html ${number} ${sheetNumber}" />
+			<classpath>
+				<pathelement location="${classes.dir}" />
+			</classpath>
+		</java>
+	</target>
+
+	<target name="SheetMerge" description="get final excel ">
+		<java classname="com.ylzinfo.test.performance.SheetMerge" classpathref="classpath" fork="yes">
+			<arg line="${totalThreadNumber}" />
+			<classpath>
+				<pathelement location="${classes.dir}" />
+			</classpath>
+		</java>
+	</target>
+
+	<target name="GetTestData" depends="compile" description="get test data">
+		<property name="number" value="1000" />
+		<java classname="com.ylzinfo.test.performance.GetTestData" classpathref="classpath" fork="yes">
+			<arg line="${number}" />
+			<classpath>
+				<pathelement location="${classes.dir}" />
+			</classpath>
+		</java>
+	</target>
+
+	<target name="sendmail" description="send result mail">
+		<mail mailhost="smtp.ylzinfo.com" user="minghongjun@ylzinfo.com" password="466514166" subject="jmeterTest" mailport="25">
+			<from address="minghongjun@ylzinfo.com" />
+			<to address="minghongjun@ylzinfo.com" />
+			<message>This is auto PerformancefTest results(without apache)</message>
+			<attachments>
+				<fileset dir="${copy}">
+					<include name="*.html" />
+					<include name="*.xlsx" />
+				</fileset>
+			</attachments>
+		</mail>
+	</target>
+	<target name="sleep">
+		<echo message="sleep for 8 minutes" />
+		<sleep minutes="8" />
+		<echo message="continue" />
+	</target>
+	<target name="run.all.thread" depends="compile" description="run four different threads">
+		<copy todir="${copyOld}" file="${copy}/result.xlsx" overwrite="true" />
+		<antcall target="runJmeter">
+			<param name="number" value="50" />
+			<param name="sheetNumber" value="0" />
+		</antcall>
+		<antcall target="runJmeter">
+			<param name="number" value="100" />
+			<param name="sheetNumber" value="1" />
+		</antcall>
+		<antcall target="runJmeter">
+			<param name="number" value="200" />
+			<param name="sheetNumber" value="2" />
+		</antcall>
+		<antcall target="runJmeter">
+			<param name="number" value="500" />
+			<param name="sheetNumber" value="3" />
+		</antcall>
+		<antcall target="SheetMerge">
+			<param name="totalThreadNumber" value="4" />
+		</antcall>
+		<antcall target="sendmail" />
+	</target>
+</project>
