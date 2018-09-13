@@ -21,7 +21,7 @@ import com.ylzinfo.test.performance.base.DataInit;
 
 public class FromHtmlToExcel extends DataInit {
 //fsfstttttttbfsfsafsfsaffsdfasfsdfsafas
-	protected static XSSFWorkbook wb;
+	protected static XSSFWorkbook wb; //fsafas
 	protected static XSSFSheet sheet;
 
 	@SuppressWarnings("deprecation")
